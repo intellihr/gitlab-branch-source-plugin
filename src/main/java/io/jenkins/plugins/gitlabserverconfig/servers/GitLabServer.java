@@ -39,6 +39,7 @@ import org.kohsuke.stapler.interceptor.RequirePOST;
 import static com.cloudbees.plugins.credentials.CredentialsMatchers.withId;
 import static com.cloudbees.plugins.credentials.CredentialsProvider.lookupCredentials;
 import static com.cloudbees.plugins.credentials.domains.URIRequirementBuilder.fromUri;
+import static io.jenkins.plugins.gitlabbranchsource.helpers.GitLabHelper.getProxyConfig;
 import static org.apache.commons.lang.StringUtils.defaultIfBlank;
 
 /**
@@ -52,7 +53,11 @@ public class GitLabServer extends AbstractDescribableImpl<GitLabServer> {
     public static final CredentialsMatcher CREDENTIALS_MATCHER = CredentialsMatchers
         .instanceOf(PersonalAccessToken.class);
     /**
-     * Used as default community saas version server URL for the serverUrl field
+     * Default name for community SaaS version server
+     */
+    public static final String GITLAB_SERVER_DEFAULT_NAME = "default";
+    /**
+     * Used as default community SaaS version server URL for the serverUrl field
      */
     public static final String GITLAB_SERVER_URL = "https://gitlab.com";
     /**
@@ -129,10 +134,10 @@ public class GitLabServer extends AbstractDescribableImpl<GitLabServer> {
     @DataBoundConstructor
     public GitLabServer(@NonNull String serverUrl, @NonNull String name,
         @NonNull String credentialsId) {
-        this.serverUrl = defaultIfBlank(serverUrl, GITLAB_SERVER_URL);
+        this.serverUrl = defaultIfBlank(StringUtils.trim(serverUrl), GITLAB_SERVER_URL);
         this.name = StringUtils.isBlank(name)
             ? getRandomName()
-            : name;
+            : StringUtils.trim(name);
         this.credentialsId = credentialsId;
     }
 
@@ -237,7 +242,7 @@ public class GitLabServer extends AbstractDescribableImpl<GitLabServer> {
      */
     @DataBoundSetter
     public void setHooksRootUrl(String hooksRootUrl) {
-        this.hooksRootUrl = hooksRootUrl;
+        this.hooksRootUrl = Util.fixEmptyAndTrim(hooksRootUrl);
     }
 
     /**
@@ -274,6 +279,13 @@ public class GitLabServer extends AbstractDescribableImpl<GitLabServer> {
         return secretToken;
     }
 
+    public String getSecretTokenAsPlainText() {
+        if (this.secretToken == null) {
+            return null;
+        }
+        return this.secretToken.getPlainText();
+    }
+
     /**
      * Our descriptor.
      */
@@ -297,7 +309,7 @@ public class GitLabServer extends AbstractDescribableImpl<GitLabServer> {
             if (GITLAB_SERVER_URL.equals(serverUrl)) {
                 LOGGER.log(Level.FINEST, String.format("Community version of GitLab: %s", serverUrl));
             }
-            GitLabApi gitLabApi = new GitLabApi(serverUrl, "");
+            GitLabApi gitLabApi = new GitLabApi(serverUrl, "", null, getProxyConfig(serverUrl));
             try {
                 gitLabApi.getProjectApi().getProjects(1, 1);
                 return FormValidation.ok();
@@ -349,7 +361,7 @@ public class GitLabServer extends AbstractDescribableImpl<GitLabServer> {
                 privateToken = credentials.getToken().getPlainText();
             }
             if (privateToken.equals(EMPTY_TOKEN)) {
-                GitLabApi gitLabApi = new GitLabApi(serverUrl, EMPTY_TOKEN);
+                GitLabApi gitLabApi = new GitLabApi(serverUrl, EMPTY_TOKEN, null, getProxyConfig(serverUrl));
                 try {
                     /*
                     In order to validate a GitLab Server without personal access token,
@@ -367,7 +379,7 @@ public class GitLabServer extends AbstractDescribableImpl<GitLabServer> {
                 }
             } else {
 
-                GitLabApi gitLabApi = new GitLabApi(serverUrl, privateToken);
+                GitLabApi gitLabApi = new GitLabApi(serverUrl, privateToken, null, getProxyConfig(serverUrl));
                 try {
                     User user = gitLabApi.getUserApi().getCurrentUser();
                     LOGGER.log(Level.FINEST, String

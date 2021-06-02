@@ -70,6 +70,7 @@ import org.kohsuke.stapler.QueryParameter;
 import static com.cloudbees.plugins.credentials.CredentialsProvider.lookupCredentials;
 import static com.cloudbees.plugins.credentials.domains.URIRequirementBuilder.fromUri;
 import static io.jenkins.plugins.gitlabbranchsource.helpers.GitLabHelper.apiBuilder;
+import static io.jenkins.plugins.gitlabbranchsource.helpers.GitLabHelper.getProxyConfig;
 import static io.jenkins.plugins.gitlabbranchsource.helpers.GitLabHelper.getServerUrl;
 import static io.jenkins.plugins.gitlabbranchsource.helpers.GitLabHelper.getServerUrlFromName;
 import static io.jenkins.plugins.gitlabbranchsource.helpers.GitLabIcons.ICON_GITLAB;
@@ -248,8 +249,9 @@ public class GitLabSCMNavigator extends SCMNavigator {
             String webHookUrl = null;
             if (webHookCredentials != null) {
                 GitLabServer server = GitLabServers.get().findServer(serverName);
-                webhookGitLabApi = new GitLabApi(getServerUrl(server),
-                    webHookCredentials.getToken().getPlainText());
+                String serverUrl = getServerUrl(server);
+                webhookGitLabApi = new GitLabApi(serverUrl,
+                        webHookCredentials.getToken().getPlainText(), null, getProxyConfig(serverUrl));
                 webHookUrl = GitLabHookCreator.getHookUrl(server, true);
             }
             for (Project p : projects) {
@@ -271,7 +273,7 @@ public class GitLabSCMNavigator extends SCMNavigator {
                     if (webhookGitLabApi != null && webHookUrl != null) {
                         observer.getListener().getLogger().format("Web hook %s%n", GitLabHookCreator
                             .createWebHookWhenMissing(webhookGitLabApi, projectPathWithNamespace,
-                                webHookUrl, server.getSecretToken().getPlainText()));
+                                webHookUrl, server.getSecretTokenAsPlainText()));
                     }
                 } catch (GitLabApiException e) {
                     observer.getListener().getLogger()

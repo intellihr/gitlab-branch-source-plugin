@@ -419,7 +419,13 @@ public class GitLabSCMSource extends AbstractGitSCMSource {
                         } else if (fork) {
                             originProjectPath = forkMrSources.get(mr.getSourceProjectId());
                         }
-                        String targetSha = gitLabApi.getRepositoryApi().getBranch(mr.getTargetProjectId(), mr.getTargetBranch()).getCommit().getId();
+                        String targetSha;
+                        try {
+                            targetSha = gitLabApi.getRepositoryApi().getBranch(mr.getTargetProjectId(), mr.getTargetBranch()).getCommit().getId();
+                        } catch (Exception e) {
+                            listener.getLogger().format("Failed getting TargetBranch from Merge Request: " + mr.getIid() + " (" + mr.getTitle() + ")%n%s", e);
+                            continue;
+                        }
                         LOGGER.log(Level.FINE, String.format("%s -> %s", originOwner, (request.isMember(originOwner) ? "Trusted"
                             : "Untrusted")));
                         for (ChangeRequestCheckoutStrategy strategy : strategies.get(fork)) {
@@ -714,11 +720,16 @@ public class GitLabSCMSource extends AbstractGitSCMSource {
 
     @Override
     public void afterSave() {
-        GitLabSCMSourceContext ctx = new GitLabSCMSourceContext(null, SCMHeadObserver.none())
+        GitLabServer server = GitLabServers.get().findServer(getServerName());
+        // Only register webhooks in the case webhooks wants to be managed in
+        // the jenkins instance.
+        if (server != null && server.isManageWebHooks()) {
+            GitLabSCMSourceContext ctx = new GitLabSCMSourceContext(null, SCMHeadObserver.none())
                 .withTraits(new GitLabSCMNavigatorContext().withTraits(traits).traits());
-        GitLabHookRegistration webhookMode = ctx.webhookRegistration();
-        GitLabHookRegistration systemhookMode = ctx.systemhookRegistration();
-        GitLabHookCreator.register(this, webhookMode, systemhookMode);
+            GitLabHookRegistration webhookMode = ctx.webhookRegistration();
+            GitLabHookRegistration systemhookMode = ctx.systemhookRegistration();
+            GitLabHookCreator.register(this, webhookMode, systemhookMode);
+        }
     }
 
     public PersonalAccessToken credentials() {

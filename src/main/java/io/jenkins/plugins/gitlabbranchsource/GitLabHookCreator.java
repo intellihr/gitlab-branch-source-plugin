@@ -17,6 +17,8 @@ import org.gitlab4j.api.GitLabApiException;
 import org.gitlab4j.api.models.ProjectHook;
 import org.gitlab4j.api.models.SystemHook;
 
+import static io.jenkins.plugins.gitlabbranchsource.helpers.GitLabHelper.getProxyConfig;
+
 public class GitLabHookCreator {
 
     public static final Logger LOGGER = Logger.getLogger(GitLabHookCreator.class.getName());
@@ -84,14 +86,14 @@ public class GitLabHookCreator {
                 return;
         }
         String hookUrl = getHookUrl(server, true);
-        String secretToken = server.getSecretToken().getPlainText();
+        String secretToken = server.getSecretTokenAsPlainText();
         if (hookUrl.equals("")) {
             return;
         }
         if (credentials != null) {
             try {
                 GitLabApi gitLabApi = new GitLabApi(server.getServerUrl(),
-                    credentials.getToken().getPlainText());
+                    credentials.getToken().getPlainText(), null, getProxyConfig(server.getServerUrl()));
                 createWebHookWhenMissing(gitLabApi, source.getProjectPath(), hookUrl, secretToken);
             } catch (GitLabApiException e) {
                 LOGGER.log(Level.WARNING,
@@ -131,14 +133,14 @@ public class GitLabHookCreator {
         String systemHookUrl = getHookUrl(server, false);
         try {
             GitLabApi gitLabApi = new GitLabApi(server.getServerUrl(),
-                credentials.getToken().getPlainText());
+                credentials.getToken().getPlainText(), null, getProxyConfig(server.getServerUrl()));
             SystemHook systemHook = gitLabApi.getSystemHooksApi()
                 .getSystemHookStream()
                 .filter(hook -> systemHookUrl.equals(hook.getUrl()))
                 .findFirst()
                 .orElse(null);
             if (systemHook == null) {
-                gitLabApi.getSystemHooksApi().addSystemHook(systemHookUrl, server.getSecretToken().getPlainText(),
+                gitLabApi.getSystemHooksApi().addSystemHook(systemHookUrl, server.getSecretTokenAsPlainText(),
                     false, false, false);
             }
         } catch (GitLabApiException e) {
